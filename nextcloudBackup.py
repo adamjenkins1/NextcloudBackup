@@ -28,8 +28,12 @@ class NextcloudBackup(metaclass=Singleton):
     def __init__(self, args):
         # list of files to backup
         self.toBackup = []
+        
+        # verify that NEXTCLOUD_DATA, NEXTCLOUD_DATA_BACKUP, and 
+        # NEXTCLOUD_BACKUP_PARTITION exist
+        self.checkDataExists()
 
-        # argparse namespace object
+        # verify argparse namespace object
         self.args = self.checkArgs(args)
 
         # log variables
@@ -65,6 +69,20 @@ class NextcloudBackup(metaclass=Singleton):
             self.log.close()
             self.error.close()
             self.erroredFiles.close()
+
+    def checkDataExists(self):
+        paths = {
+                self.NEXTCLOUD_DATA: 'Error: Nextcloud Data directory \'{}\' does not exist'.format(self.NEXTCLOUD_DATA), 
+                self.NEXTCLOUD_DATA_BACKUP: 'Error: Nextcloud backup mount point \'{}\' does not exist'.format(self.NEXTCLOUD_DATA_BACKUP)
+                }
+
+        for path, err in paths.items():
+            if not os.path.exists(path):
+                sys.exit(err)
+
+        if self.NEXTCLOUD_BACKUP_PARTITION.split('/')[-1] not in self.executeCommand('lsblk -l'):
+            sys.exit('Error: Nextcloud backup partition \'{}\' does not exist'.format(self.NEXTCLOUD_BACKUP_PARTITION))
+
 
     def checkArgs(self, args):
         # check type of args object
