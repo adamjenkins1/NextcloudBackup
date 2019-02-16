@@ -15,17 +15,17 @@ class Singleton(type):
         return cls._instance
 
 class NextcloudBackup(metaclass=Singleton):
-    def __init__(self, args):
-        # constants
-        self.NEXTCLOUD_BACKUP_LOG = '/var/log/nextcloud/backups/backups.log'
-        self.NEXTCLOUD_BACKUP_ERROR_LOG = '/var/log/nextcloud/backups/error.log'
-        self.NEXTCLOUD_ERRORED_FILES_LOG = '/var/log/nextcloud/backups/errored_files.log'
-        self.NEXTCLOUD_DATA = '/var/www/nextcloud/data/'
-        self.NEXTCLOUD_DATA_BACKUP = '/mnt/nextcloud_backup/'
-        self.NEXTCLOUD_BACKUP_PARTITION = '/dev/sdc1'
-        self.IGNORED_FILE_TYPES = ['part']
-        self.OLD_DUMMY_DATE = 'Tue Jan 29 19:37:23 2000\n'
+    # constants
+    NEXTCLOUD_BACKUP_LOG = '/var/log/nextcloud/backups/backups.log'
+    NEXTCLOUD_BACKUP_ERROR_LOG = '/var/log/nextcloud/backups/error.log'
+    NEXTCLOUD_ERRORED_FILES_LOG = '/var/log/nextcloud/backups/errored_files.log'
+    NEXTCLOUD_DATA = '/var/www/nextcloud/data/'
+    NEXTCLOUD_DATA_BACKUP = '/mnt/nextcloud_backup/'
+    NEXTCLOUD_BACKUP_PARTITION = '/dev/sdc1'
+    IGNORED_FILE_TYPES = ['part']
+    OLD_DUMMY_DATE = 'Tue Jan 29 19:37:23 2000\n'
 
+    def __init__(self, args):
         # list of files to backup
         self.toBackup = []
 
