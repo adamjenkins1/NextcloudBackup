@@ -2,17 +2,28 @@
 from unittest import TestCase, mock, skip
 from unittest.mock import MagicMock, patch, mock_open
 from argparse import Namespace
+from contextlib import redirect_stdout, redirect_stderr
+from io import StringIO
 import os
 import shutil
 import random
+import datetime
 from nextcloudBackup import NextcloudBackup
 
 class NextcloudBackupTests(TestCase):
+    OLD_DUMMY_DATE = NextcloudBackup.OLD_DUMMY_DATE
+    DUMMY_EPOCH_TIME = 1535862436.9329703
+    IGNORED_FILE_TYPES = NextcloudBackup.IGNORED_FILE_TYPES
+    NEXTCLOUD_DATA = NextcloudBackup.NEXTCLOUD_DATA
+    NEXTCLOUD_BACKUP_DATA = NextcloudBackup.NEXTCLOUD_DATA_BACKUP
+    SAMPLE_ERRORED_FILES = '{}\n{}\n'.format(os.path.join(NEXTCLOUD_DATA, '/file/', '1.txt'), os.path.join(NEXTCLOUD_DATA, '/file/', '2.txt'))
+    FAKE_FILES = ['file1.txt', 'file2.' + IGNORED_FILE_TYPES[-1]]
+
+    class MockDatetime(datetime.datetime):
+        def now():
+            return datetime.datetime.fromtimestamp(NextcloudBackupTests.DUMMY_EPOCH_TIME)
+
     def setUp(self):
-        self.OLD_DUMMY_DATE = NextcloudBackup.OLD_DUMMY_DATE
-        self.SAMPLE_ERRORED_FILES = '/path/to/file/1.txt\n/path/to/file/2.txt\n'
-        self.DUMMY_EPOCH_TIME = 1535862436.9329703
-        self.IGNORED_FILE_TYPES = NextcloudBackup.IGNORED_FILE_TYPES
         self.obj = object()
 
     def tearDown(self):
@@ -107,7 +118,6 @@ class NextcloudBackupTests(TestCase):
             self.assertEqual(self.obj.toBackup, self.SAMPLE_ERRORED_FILES.split('\n')[:-1])
             mockLog().write.assert_called_once_with(self.OLD_DUMMY_DATE)
 
-    #@skip('test not done yet')
     @patch('shutil.copy2')
     @patch('os.path.getmtime')
     @patch('os.path.exists')
@@ -120,7 +130,7 @@ class NextcloudBackupTests(TestCase):
         mockStat.side_effect = [MagicMock(st_size=1), MagicMock(st_size=0)]
         mockIsfile.return_value = True
         mockExists.return_value = True
-        mockWalk.return_value = [('/path/to/subdir/', 'dirs', ['file1.txt', 'file2.' + random.choice(self.IGNORED_FILE_TYPES)])]
+        mockWalk.return_value = [(self.NEXTCLOUD_DATA, 'dirs', self.FAKE_FILES)]
         mockExecuteCommand.return_value = ''
         mockGetmtime.return_value = self.DUMMY_EPOCH_TIME
 
@@ -133,3 +143,73 @@ class NextcloudBackupTests(TestCase):
         with patch('builtins.open', mainHandler):
             self.obj = NextcloudBackup(Namespace(dry_run=False, verbose=False))
             self.obj.main()
+            self.assertEqual(self.obj.toBackup, [os.path.join(self.NEXTCLOUD_DATA, x) for x in self.FAKE_FILES])
+
+    @patch('os.makedirs')
+    @patch('shutil.copy2')
+    @patch('os.path.getmtime')
+    @patch('os.path.exists')
+    @patch('os.walk')
+    @patch('os.stat')
+    @patch('os.path.isfile')
+    @patch('nextcloudBackup.NextcloudBackup.mountBackupPartition')
+    @patch('nextcloudBackup.NextcloudBackup.executeCommand')
+    def test_main_verbose(self, mockExecuteCommand, mockMountBackupPartition, mockIsfile, mockStat, mockWalk, mockExists, mockGetmtime, mockShutil, mockMakedirs):
+        mockStat.side_effect = [MagicMock(st_size=1), MagicMock(st_size=0)]
+        mockIsfile.return_value = True
+        mockExists.side_effect = [False, True]
+        mockWalk.return_value = [(self.NEXTCLOUD_DATA, 'dirs', self.FAKE_FILES)]
+        mockExecuteCommand.return_value = ''
+        mockGetmtime.return_value = self.DUMMY_EPOCH_TIME
+
+        # log file setup
+        mainHandler = mock_open()
+        mockLog = mock_open(read_data=self.OLD_DUMMY_DATE)
+        mockError = mock_open()
+        mockErroredFiles = mock_open()
+        mainHandler.side_effect = [mockLog.return_value, mockError.return_value, mockErroredFiles.return_value]
+        out = StringIO()
+
+        with patch('builtins.open', mainHandler):
+            with redirect_stdout(out):
+                self.obj = NextcloudBackup(Namespace(dry_run=False, verbose=True))
+                self.obj.main()
+                self.assertEqual(self.obj.toBackup, [os.path.join(self.NEXTCLOUD_DATA, x) for x in self.FAKE_FILES])
+                self.assertEqual(out.getvalue(), 'creating \'{}\'\n\'{}\' --> \'{}\'\n'.format(self.NEXTCLOUD_BACKUP_DATA, os.path.join(self.NEXTCLOUD_DATA, self.FAKE_FILES[0]), os.path.join(self.NEXTCLOUD_BACKUP_DATA, self.FAKE_FILES[0])))
+
+    @patch('datetime.datetime', MockDatetime)
+    @patch('os.makedirs')
+    @patch('shutil.copy2')
+    @patch('os.path.getmtime')
+    @patch('os.path.exists')
+    @patch('os.walk')
+    @patch('os.stat')
+    @patch('os.path.isfile')
+    @patch('nextcloudBackup.NextcloudBackup.mountBackupPartition')
+    @patch('nextcloudBackup.NextcloudBackup.executeCommand')
+    def test_main_copy_errors(self, mockExecuteCommand, mockMountBackupPartition, mockIsfile, mockStat, mockWalk, mockExists, mockGetmtime, mockShutil, mockMakedirs):
+        mockStat.side_effect = [MagicMock(st_size=1), MagicMock(st_size=0)]
+        mockIsfile.return_value = True
+        mockExists.side_effect = [False, True]
+        mockWalk.return_value = [(self.NEXTCLOUD_DATA, 'dirs', self.FAKE_FILES)]
+        mockExecuteCommand.return_value = ''
+        mockGetmtime.return_value = self.DUMMY_EPOCH_TIME
+        mockShutil.side_effect = Exception('FAKE ERROR')
+
+        # log file setup
+        mainHandler = mock_open()
+        mockLog = mock_open(read_data=self.OLD_DUMMY_DATE)
+        mockError = mock_open()
+        mockErroredFiles = mock_open()
+        mainHandler.side_effect = [mockLog.return_value, mockError.return_value, mockErroredFiles.return_value]
+        out = err = StringIO()
+        errorMessage = '{}: caught error \'FAKE ERROR\' while attempting to copy \'{}\'\n'.format(datetime.datetime.fromtimestamp(self.DUMMY_EPOCH_TIME).strftime('%c'), os.path.join(self.NEXTCLOUD_BACKUP_DATA, self.FAKE_FILES[0]))
+
+        with patch('builtins.open', mainHandler):
+            with redirect_stderr(err):
+                self.obj = NextcloudBackup(Namespace(dry_run=False, verbose=True))
+                self.obj.main()
+                self.assertEqual(self.obj.toBackup, [os.path.join(self.NEXTCLOUD_DATA, x) for x in self.FAKE_FILES])
+                self.assertEqual(err.getvalue(), errorMessage)
+                mockError().write.assert_called_once_with(errorMessage)
+                mockErroredFiles().write.assert_called_once_with(os.path.join(self.NEXTCLOUD_DATA, self.FAKE_FILES[0]) + '\n')
