@@ -37,9 +37,9 @@ class NextcloudBackup(metaclass=Singleton):
         self.args = self.checkArgs(args)
 
         # log variables
-        self.log = self.openLogFiles(self.NEXTCLOUD_BACKUP_LOG)
-        self.error = self.openLogFiles(self.NEXTCLOUD_BACKUP_ERROR_LOG)
-        self.erroredFiles = self.openLogFiles(self.NEXTCLOUD_ERRORED_FILES_LOG)
+        self.log = self.openLogFile(self.NEXTCLOUD_BACKUP_LOG)
+        self.error = self.openLogFile(self.NEXTCLOUD_BACKUP_ERROR_LOG)
+        self.erroredFiles = self.openLogFile(self.NEXTCLOUD_ERRORED_FILES_LOG)
 
         # if backup log is empty, add dummy date
         if os.stat(self.NEXTCLOUD_BACKUP_LOG).st_size == 0:
@@ -54,26 +54,26 @@ class NextcloudBackup(metaclass=Singleton):
 
         self.mountBackupPartition()
 
-        def __del__(self):
-            # unmount storage partition
-            self.executeCommand('umount {}'.format(self.NEXTCLOUD_BACKUP_PARTITION))
+    def __del__(self):
+        # unmount storage partition
+        self.executeCommand('umount {}'.format(self.NEXTCLOUD_BACKUP_PARTITION))
 
-            # force drive to spin down
-            self.executeCommand('hdparm -y {}'.format(self.NEXTCLOUD_BACKUP_PARTITION))
+        # force drive to spin down
+        self.executeCommand('hdparm -y {}'.format(self.NEXTCLOUD_BACKUP_PARTITION))
 
-            # write current date in log if not dry run
-            if not self.args.dry_run:
-                self.log.write(datetime.datetime.now().strftime('%c') + '\n')
+        # write current date in log if not dry run
+        if not self.args.dry_run:
+            self.log.write(datetime.datetime.now().strftime('%c') + '\n')
 
-            # close log files
-            self.log.close()
-            self.error.close()
-            self.erroredFiles.close()
+        # close log files
+        self.log.close()
+        self.error.close()
+        self.erroredFiles.close()
 
     def checkDataExists(self):
         paths = {
-                self.NEXTCLOUD_DATA: 'Error: Nextcloud Data directory \'{}\' does not exist'.format(self.NEXTCLOUD_DATA), 
-                self.NEXTCLOUD_DATA_BACKUP: 'Error: Nextcloud backup mount point \'{}\' does not exist'.format(self.NEXTCLOUD_DATA_BACKUP)
+                    self.NEXTCLOUD_DATA: 'Error: Nextcloud data directory \'{}\' does not exist'.format(self.NEXTCLOUD_DATA), 
+                    self.NEXTCLOUD_DATA_BACKUP: 'Error: Nextcloud backup mount point \'{}\' does not exist'.format(self.NEXTCLOUD_DATA_BACKUP)
                 }
 
         for path, err in paths.items():
@@ -103,7 +103,7 @@ class NextcloudBackup(metaclass=Singleton):
 
         return args
 
-    def openLogFiles(self, path):
+    def openLogFile(self, path):
         if not os.path.isfile(path):
             fp = open(path, 'w+')
         else:
@@ -122,7 +122,7 @@ class NextcloudBackup(metaclass=Singleton):
         err = err[:-1].decode()
 
         if process.returncode:
-            errorMessage = '{}: \'{}\' returned the following error:\n\'{}\''.format(datetime.datetime.now().strftime('%c'), command, err)
+            errorMessage = '{}: \'{}\' returned the following error: \'{}\''.format(datetime.datetime.now().strftime('%c'), command, err)
             self.error.write(errorMessage + '\n')
             print(errorMessage, file=sys.stderr)
             sys.exit(process.returncode)

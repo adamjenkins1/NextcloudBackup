@@ -6,7 +6,6 @@ from contextlib import redirect_stdout, redirect_stderr
 from io import StringIO
 import os
 import shutil
-import random
 import datetime
 from nextcloudBackup import NextcloudBackup
 
@@ -19,18 +18,15 @@ class NextcloudBackupTests(TestCase):
     NEXTCLOUD_BACKUP_PARTITION = NextcloudBackup.NEXTCLOUD_BACKUP_PARTITION
     SAMPLE_ERRORED_FILES = '{}\n{}\n'.format(os.path.join(NEXTCLOUD_DATA, '/file/', '1.txt'), os.path.join(NEXTCLOUD_DATA, '/file/', '2.txt'))
     FAKE_FILES = ['file1.txt', 'file2.' + IGNORED_FILE_TYPES[-1]]
-    counter = 0
 
     class MockDatetime(datetime.datetime):
         def now():
             return datetime.datetime.fromtimestamp(NextcloudBackupTests.DUMMY_EPOCH_TIME)
 
-    def fakeInit(self):
-        print('constructor called')
-    
     def setUp(self):
         self.obj = object()
 
+    @patch('nextcloudBackup.NextcloudBackup.__del__', MagicMock())
     def tearDown(self):
         if hasattr(self.obj, '_instance') and self.obj._instance is not None:
             del type(self.obj)._instance
@@ -43,6 +39,7 @@ class NextcloudBackupTests(TestCase):
     @patch('nextcloudBackup.NextcloudBackup.checkDataExists')
     @patch('nextcloudBackup.NextcloudBackup.mountBackupPartition')
     @patch('nextcloudBackup.NextcloudBackup.executeCommand')
+    @patch('nextcloudBackup.NextcloudBackup.__del__', MagicMock())
     def test_sanity(self, mockExecuteCommand, mockMountBackupPartition, mockCheckExists, mockOpen, mockIsfile, mockStat):
         mockStat.side_effect = [MagicMock(st_size=1), MagicMock(st_size=0)]
         mockIsfile.return_value = True
@@ -50,15 +47,21 @@ class NextcloudBackupTests(TestCase):
         self.obj = NextcloudBackup(Namespace(verbose=False, dry_run=False))
 
     @patch('os.path.exists')
-    def test_bad_nextcloud_data(self, mockExists):
+    @patch('nextcloudBackup.NextcloudBackup.checkArgs')
+    @patch('nextcloudBackup.NextcloudBackup.__del__', MagicMock())
+    def test_bad_nextcloud_data(self, mockCheckArgs, mockExists):
+        mockCheckArgs.side_effect = SystemExit('Did not raise SystemExit in checkDataExists()')
         mockExists.return_value = False
         with self.assertRaises(SystemExit) as err:
             self.obj = NextcloudBackup(Namespace(verbose=False, dry_run=False))
 
-        self.assertEqual(err.exception.code, 'Error: Nextcloud Data directory \'{}\' does not exist'.format(self.NEXTCLOUD_DATA))
+        self.assertEqual(err.exception.code, 'Error: Nextcloud data directory \'{}\' does not exist'.format(self.NEXTCLOUD_DATA))
 
     @patch('os.path.exists')
-    def test_bad_nextcloud_data_backup(self, mockExists):
+    @patch('nextcloudBackup.NextcloudBackup.checkArgs')
+    @patch('nextcloudBackup.NextcloudBackup.__del__', MagicMock())
+    def test_bad_nextcloud_data_backup(self, mockCheckArgs, mockExists):
+        mockCheckArgs.side_effect = SystemExit('Did not raise SystemExit in checkDataExists()')
         mockExists.side_effect = [True, False]
         with self.assertRaises(SystemExit) as err:
             self.obj = NextcloudBackup(Namespace(verbose=False, dry_run=False))
@@ -66,8 +69,11 @@ class NextcloudBackupTests(TestCase):
         self.assertEqual(err.exception.code, 'Error: Nextcloud backup mount point \'{}\' does not exist'.format(self.NEXTCLOUD_DATA_BACKUP))
 
     @patch('os.path.exists')
+    @patch('nextcloudBackup.NextcloudBackup.checkArgs')
     @patch('nextcloudBackup.NextcloudBackup.executeCommand')
-    def test_bad_nextcloud_backup_partition(self, mockExecuteCommand, mockExists):
+    @patch('nextcloudBackup.NextcloudBackup.__del__', MagicMock())
+    def test_bad_nextcloud_backup_partition(self, mockExecuteCommand, mockCheckArgs, mockExists):
+        mockCheckArgs.side_effect = SystemExit('Did not raise SystemExit in checkDataExists()')
         mockExists.return_value = True
         mockExecuteCommand.return_value = ''
         with self.assertRaises(SystemExit) as err:
@@ -75,48 +81,33 @@ class NextcloudBackupTests(TestCase):
 
         self.assertEqual(err.exception.code, 'Error: Nextcloud backup partition \'{}\' does not exist'.format(self.NEXTCLOUD_BACKUP_PARTITION))
 
-    @patch('os.stat')
-    @patch('os.path.isfile')
-    @patch('builtins.open', new_callable=mock_open())
+    @patch('nextcloudBackup.NextcloudBackup.openLogFile')
     @patch('nextcloudBackup.NextcloudBackup.checkDataExists')
-    @patch('nextcloudBackup.NextcloudBackup.mountBackupPartition')
-    @patch('nextcloudBackup.NextcloudBackup.executeCommand')
-    def test_bad_args_object(self, mockExecuteCommand, mockMountBackupPartition, mockCheckExists, mockOpen, mockIsfile, mockStat):
-        mockStat.side_effect = [MagicMock(st_size=1), MagicMock(st_size=0)]
-        mockIsfile.return_value = True
-        mockExecuteCommand.return_value = ''
+    @patch('nextcloudBackup.NextcloudBackup.__del__', MagicMock())
+    def test_bad_args_object(self, mockCheckExists, mockOpenLogFile):
+        mockOpenLogFile.side_effect = SystemExit('Did not raise SystemExit in checkArgs()')
 
         with self.assertRaises(SystemExit) as err:
             self.obj = NextcloudBackup(MagicMock(verbose=False, dry_run=False))
 
         self.assertEqual(err.exception.code, 'Error: expected object of type \'argparse.Namespace\', received object of type \'<class \'unittest.mock.MagicMock\'>\'')
 
-    @patch('os.stat')
-    @patch('os.path.isfile')
-    @patch('builtins.open', new_callable=mock_open())
+    @patch('nextcloudBackup.NextcloudBackup.openLogFile')
     @patch('nextcloudBackup.NextcloudBackup.checkDataExists')
-    @patch('nextcloudBackup.NextcloudBackup.mountBackupPartition')
-    @patch('nextcloudBackup.NextcloudBackup.executeCommand')
-    def test_missing_arg(self, mockExecuteCommand, mockMountBackupPartition, mockCheckExists, mockOpen, mockIsfile, mockStat):
-        mockStat.side_effect = [MagicMock(st_size=1), MagicMock(st_size=0)]
-        mockIsfile.return_value = True
-        mockExecuteCommand.return_value = ''
+    @patch('nextcloudBackup.NextcloudBackup.__del__', MagicMock())
+    def test_missing_arg(self, mockCheckExists, mockOpenLogFile):
+        mockOpenLogFile.side_effect = SystemExit('Did not raise SystemExit in checkArgs()')
 
         with self.assertRaises(SystemExit) as err:
             self.obj = NextcloudBackup(Namespace(dry_run=False))
 
         self.assertEqual(err.exception.code, 'Error: missing required attributes in Namespace object')
 
-    @patch('os.stat')
-    @patch('os.path.isfile')
-    @patch('builtins.open', new_callable=mock_open())
+    @patch('nextcloudBackup.NextcloudBackup.openLogFile')
     @patch('nextcloudBackup.NextcloudBackup.checkDataExists')
-    @patch('nextcloudBackup.NextcloudBackup.mountBackupPartition')
-    @patch('nextcloudBackup.NextcloudBackup.executeCommand')
-    def test_bad_arg_type(self, mockExecuteCommand, mockMountBackupPartition, mockCheckExists, mockOpen, mockIsfile, mockStat):
-        mockStat.side_effect = [MagicMock(st_size=1), MagicMock(st_size=0)]
-        mockIsfile.return_value = True
-        mockExecuteCommand.return_value = ''
+    @patch('nextcloudBackup.NextcloudBackup.__del__', MagicMock())
+    def test_bad_arg_type(self, mockCheckExists, mockOpenLogFile):
+        mockOpenLogFile.side_effect = SystemExit('Did not raise SystemExit in checkArgs()')
 
         with self.assertRaises(SystemExit) as err:
             self.obj = NextcloudBackup(Namespace(verbose=False, dry_run=1))
@@ -129,6 +120,7 @@ class NextcloudBackupTests(TestCase):
     @patch('nextcloudBackup.NextcloudBackup.checkDataExists')
     @patch('nextcloudBackup.NextcloudBackup.mountBackupPartition')
     @patch('nextcloudBackup.NextcloudBackup.executeCommand')
+    @patch('nextcloudBackup.NextcloudBackup.__del__', MagicMock())
     def test_set_verbosity_on_dry_run(self, mockExecuteCommand, mockMountBackupPartition, mockCheckExists, mockOpen, mockIsfile, mockStat):
         mockStat.side_effect = [MagicMock(st_size=1), MagicMock(st_size=0)]
         mockIsfile.return_value = True
@@ -141,6 +133,7 @@ class NextcloudBackupTests(TestCase):
     @patch('nextcloudBackup.NextcloudBackup.checkDataExists')
     @patch('nextcloudBackup.NextcloudBackup.mountBackupPartition')
     @patch('nextcloudBackup.NextcloudBackup.executeCommand')
+    @patch('nextcloudBackup.NextcloudBackup.__del__', MagicMock())
     def test_log_access(self, mockExecuteCommand, mockMountBackupPartition, mockCheckExists, mockIsfile, mockStat):
         mockStat.side_effect = [MagicMock(st_size=0), MagicMock(st_size=1)]
         mockIsfile.return_value = False
@@ -164,6 +157,7 @@ class NextcloudBackupTests(TestCase):
     @patch('nextcloudBackup.NextcloudBackup.checkDataExists')
     @patch('nextcloudBackup.NextcloudBackup.mountBackupPartition')
     @patch('nextcloudBackup.NextcloudBackup.executeCommand')
+    @patch('nextcloudBackup.NextcloudBackup.__del__', MagicMock())
     def test_main(self, mockExecuteCommand, mockMountBackupPartition, mockCheckExists, mockIsfile, mockStat, mockWalk, mockExists, mockGetmtime, mockShutil):
         mockStat.side_effect = [MagicMock(st_size=1), MagicMock(st_size=0)]
         mockIsfile.return_value = True
@@ -193,6 +187,7 @@ class NextcloudBackupTests(TestCase):
     @patch('nextcloudBackup.NextcloudBackup.checkDataExists')
     @patch('nextcloudBackup.NextcloudBackup.mountBackupPartition')
     @patch('nextcloudBackup.NextcloudBackup.executeCommand')
+    @patch('nextcloudBackup.NextcloudBackup.__del__', MagicMock())
     def test_main_verbose(self, mockExecuteCommand, mockMountBackupPartition, mockCheckExists, mockIsfile, mockStat, mockWalk, mockExists, mockGetmtime, mockShutil, mockMakedirs):
         mockStat.side_effect = [MagicMock(st_size=1), MagicMock(st_size=0)]
         mockIsfile.return_value = True
@@ -227,6 +222,7 @@ class NextcloudBackupTests(TestCase):
     @patch('nextcloudBackup.NextcloudBackup.checkDataExists')
     @patch('nextcloudBackup.NextcloudBackup.mountBackupPartition')
     @patch('nextcloudBackup.NextcloudBackup.executeCommand')
+    @patch('nextcloudBackup.NextcloudBackup.__del__', MagicMock())
     def test_main_copy_errors(self, mockExecuteCommand, mockMountBackupPartition, mockCheckExists, mockIsfile, mockStat, mockWalk, mockExists, mockGetmtime, mockShutil, mockMakedirs):
         mockStat.side_effect = [MagicMock(st_size=1), MagicMock(st_size=0)]
         mockIsfile.return_value = True
@@ -254,9 +250,10 @@ class NextcloudBackupTests(TestCase):
                 mockError().write.assert_called_once_with(errorMessage)
                 mockErroredFiles().write.assert_called_once_with(os.path.join(self.NEXTCLOUD_DATA, self.FAKE_FILES[0]) + '\n')
 
+    @patch('nextcloudBackup.NextcloudBackup.__del__', MagicMock())
     def test_singleton_behavior(self):
         oldInit = NextcloudBackup.__init__
-        NextcloudBackup.__init__ = self.fakeInit
+        NextcloudBackup.__init__ = lambda self: print('constructor called')
         out = StringIO()
 
         with redirect_stdout(out):
@@ -267,3 +264,27 @@ class NextcloudBackupTests(TestCase):
         self.assertEqual(out.getvalue(), 'constructor called\n')
 
         NextcloudBackup.__init__ = oldInit
+
+    @patch('datetime.datetime', MockDatetime)
+    @patch('os.stat')
+    @patch('os.path.isfile')
+    @patch('nextcloudBackup.NextcloudBackup.checkDataExists')
+    @patch('nextcloudBackup.NextcloudBackup.mountBackupPartition')
+    @patch('nextcloudBackup.NextcloudBackup.executeCommand')
+    def test_destructor(self, mockExecuteCommand, mockMountBackupPartition, mockCheckExists, mockIsfile, mockStat):
+        mockStat.side_effect = [MagicMock(st_size=1), MagicMock(st_size=0)]
+        mockExecuteCommand.return_value = ''
+        mockIsfile.return_value = True
+
+        # log file setup
+        mainHandler = mock_open()
+        mockLog = mock_open(read_data=self.OLD_DUMMY_DATE)
+        mockError = mock_open()
+        mockErroredFiles = mock_open()
+        mainHandler.side_effect = [mockLog.return_value, mockError.return_value, mockErroredFiles.return_value]
+        with patch('builtins.open', mainHandler):
+            self.obj = NextcloudBackup(Namespace(dry_run=False, verbose=False))
+            self.obj.__del__()
+            mockLog().write.assert_called_once_with('{}\n'.format(datetime.datetime.fromtimestamp(self.DUMMY_EPOCH_TIME).strftime('%c')))
+            for log in [mockLog(), mockError(), mockErroredFiles()]:
+                log.close.assert_called_once()
