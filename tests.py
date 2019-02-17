@@ -19,11 +19,15 @@ class NextcloudBackupTests(TestCase):
     NEXTCLOUD_BACKUP_PARTITION = NextcloudBackup.NEXTCLOUD_BACKUP_PARTITION
     SAMPLE_ERRORED_FILES = '{}\n{}\n'.format(os.path.join(NEXTCLOUD_DATA, '/file/', '1.txt'), os.path.join(NEXTCLOUD_DATA, '/file/', '2.txt'))
     FAKE_FILES = ['file1.txt', 'file2.' + IGNORED_FILE_TYPES[-1]]
+    counter = 0
 
     class MockDatetime(datetime.datetime):
         def now():
             return datetime.datetime.fromtimestamp(NextcloudBackupTests.DUMMY_EPOCH_TIME)
 
+    def fakeInit(self):
+        print('constructor called')
+    
     def setUp(self):
         self.obj = object()
 
@@ -249,3 +253,17 @@ class NextcloudBackupTests(TestCase):
                 self.assertEqual(err.getvalue(), errorMessage)
                 mockError().write.assert_called_once_with(errorMessage)
                 mockErroredFiles().write.assert_called_once_with(os.path.join(self.NEXTCLOUD_DATA, self.FAKE_FILES[0]) + '\n')
+
+    def test_singleton_behavior(self):
+        oldInit = NextcloudBackup.__init__
+        NextcloudBackup.__init__ = self.fakeInit
+        out = StringIO()
+
+        with redirect_stdout(out):
+            obj1 = NextcloudBackup()
+            obj2 = NextcloudBackup()
+
+        self.assertTrue(obj1 is obj2)
+        self.assertEqual(out.getvalue(), 'constructor called\n')
+
+        NextcloudBackup.__init__ = oldInit
