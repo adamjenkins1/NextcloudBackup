@@ -54,7 +54,7 @@ class NextcloudBackup(metaclass=Singleton):
 
         self.mountBackupPartition()
 
-    def __del__(self):
+    def tearDown(self):
         # unmount storage partition
         self.executeCommand('umount {}'.format(self.NEXTCLOUD_BACKUP_PARTITION))
 
@@ -82,7 +82,6 @@ class NextcloudBackup(metaclass=Singleton):
 
         if self.NEXTCLOUD_BACKUP_PARTITION.split('/')[-1] not in self.executeCommand('lsblk -l'):
             sys.exit('Error: Nextcloud backup partition \'{}\' does not exist'.format(self.NEXTCLOUD_BACKUP_PARTITION))
-
 
     def checkArgs(self, args):
         # check type of args object

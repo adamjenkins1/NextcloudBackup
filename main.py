@@ -9,6 +9,7 @@ def main():
     parser.add_argument('--dry-run', default=False, help='run script without copying files, implies --verbose', action='store_true')
     backup = NextcloudBackup(parser.parse_args())
     backup.main()
+    backup.tearDown()
 
 if __name__ == '__main__':
     main()
