@@ -1,4 +1,12 @@
-#!/usr/bin/env python3
+'''Contains Singleton metaclass and NextcloudBackup class to backup Nextcloud data
+
+Since NextcloudBackup.__init__() includes system calls to mount and opening log files,
+only one instance of NextcloudBackup should exist at a time. To ensure that this is the case,
+NextcloudBackup is an instance of its metaclass, Singleton, which creates an instance of
+NextcloudBackup if one does not exist, and returns it. Otherwise, the existing
+instance is returned.
+'''
+
 import datetime
 import os
 import sys
@@ -7,14 +15,17 @@ import subprocess
 import argparse
 
 class Singleton(type):
+    '''Metaclass to ensure only one instance of cls exists at a time'''
     _instance = None
     def __call__(cls, *args, **kwargs):
+        '''Creates new instance of cls if one does not exist'''
         if cls._instance is None:
             cls._instance = super(Singleton, cls).__call__(*args, **kwargs)
 
         return cls._instance
 
 class NextcloudBackup(metaclass=Singleton):
+    '''Class designed to perform an incremental backup of Nextcloud data'''
     # constants
     NEXTCLOUD_BACKUP_LOG = '/var/log/nextcloud/backups/backups.log'
     NEXTCLOUD_BACKUP_ERROR_LOG = '/var/log/nextcloud/backups/error.log'
@@ -26,10 +37,11 @@ class NextcloudBackup(metaclass=Singleton):
     OLD_DUMMY_DATE = 'Tue Jan 29 19:37:23 2000\n'
 
     def __init__(self, args):
+        '''Validates constants/passed arguments and mounts backup partition'''
         # list of files to backup
         self.toBackup = []
-        
-        # verify that NEXTCLOUD_DATA, NEXTCLOUD_DATA_BACKUP, and 
+
+        # verify that NEXTCLOUD_DATA, NEXTCLOUD_DATA_BACKUP, and
         # NEXTCLOUD_BACKUP_PARTITION exist
         self.checkDataExists()
 
@@ -55,6 +67,7 @@ class NextcloudBackup(metaclass=Singleton):
         self.mountBackupPartition()
 
     def tearDown(self):
+        '''Unmounts Nextcloud backup partition and closes open log files'''
         # unmount storage partition
         self.executeCommand('umount {}'.format(self.NEXTCLOUD_BACKUP_PARTITION))
 
@@ -71,38 +84,50 @@ class NextcloudBackup(metaclass=Singleton):
         self.erroredFiles.close()
 
     def checkDataExists(self):
+        '''Verifies that data location, backup mount point, and backup partition exist'''
+        # dictionary of directories and corresponding error messages
         paths = {
-                    self.NEXTCLOUD_DATA: 'Error: Nextcloud data directory \'{}\' does not exist'.format(self.NEXTCLOUD_DATA), 
-                    self.NEXTCLOUD_DATA_BACKUP: 'Error: Nextcloud backup mount point \'{}\' does not exist'.format(self.NEXTCLOUD_DATA_BACKUP)
-                }
+            self.NEXTCLOUD_DATA: ('Error: Nextcloud data directory \'{}\' '
+                                  'does not exist'.format(self.NEXTCLOUD_DATA)),
+            self.NEXTCLOUD_DATA_BACKUP: ('Error: Nextcloud backup mount point \'{}\' does '
+                                         'not exist'.format(self.NEXTCLOUD_DATA_BACKUP))
+            }
 
+        # iterate over paths and if path does not exist, report appropriate error message
         for path, err in paths.items():
             if not os.path.exists(path):
                 sys.exit(err)
 
+        # verifies if specified partition exists
         if self.NEXTCLOUD_BACKUP_PARTITION.split('/')[-1] not in self.executeCommand('lsblk -l'):
-            sys.exit('Error: Nextcloud backup partition \'{}\' does not exist'.format(self.NEXTCLOUD_BACKUP_PARTITION))
+            sys.exit(('Error: Nextcloud backup partition \'{}\' '
+                      'does not exist'.format(self.NEXTCLOUD_BACKUP_PARTITION)))
 
     def checkArgs(self, args):
-        # check type of args object
+        '''Validates passed command line arguments and returns passed object if valid'''
+        # check that args is of type argparse.Namespace
         if not isinstance(args, argparse.Namespace):
-            sys.exit('Error: expected object of type \'argparse.Namespace\', received object of type \'{}\''.format(type(args)))
+            sys.exit(('Error: expected object of type \'argparse.Namespace\', received '
+                      'object of type \'{}\''.format(type(args))))
 
         # check that args has correct attributes
         if not hasattr(args, 'verbose') or not hasattr(args, 'dry_run'):
             sys.exit('Error: missing required attributes in Namespace object')
-        
+
         # check that attributes are of correct type (bool)
         for val in [args.verbose, args.dry_run]:
             if not isinstance(val, bool):
-                sys.exit('Error: expected property of type \'bool\', found type \'{}\''.format(type(val)))
+                sys.exit(('Error: expected property of type \'bool\', '
+                          'found type \'{}\''.format(type(val))))
 
+        # dry run implies verbose
         if args.dry_run:
             args.verbose = True
 
         return args
 
     def openLogFile(self, path):
+        '''Opens given file if it exists, otherwise it is created. File object is then returned'''
         if not os.path.isfile(path):
             fp = open(path, 'w+')
         else:
@@ -111,24 +136,33 @@ class NextcloudBackup(metaclass=Singleton):
         return fp
 
     def executeCommand(self, command):
-        """Executes command given and exits if error is encountered"""
+        '''Executes command given and exits if error is encountered'''
         if self.args.dry_run:
             return ''
 
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        # create subprocess object with passed command
+        process = subprocess.Popen(command,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE,
+                                   shell=True)
+        # get stdout and stderr from process object
         out, err = process.communicate()
         out = out[:-1].decode()
         err = err[:-1].decode()
 
+        # if process.returncode is a non-zero value, report encountered error
         if process.returncode:
-            errorMessage = '{}: \'{}\' returned the following error: \'{}\''.format(datetime.datetime.now().strftime('%c'), command, err)
+            errorMessage = ('{}: \'{}\' returned the following error: \'{}\''
+                            .format(datetime.datetime.now().strftime('%c'), command, err))
             self.error.write(errorMessage + '\n')
             print(errorMessage, file=sys.stderr)
             sys.exit(process.returncode)
 
+        # return captured stdout from executed command
         return out
 
     def mountBackupPartition(self):
+        '''Mounts Nextcloud backup partition and unmounts required resources if used'''
         # if something is mounted at our backup mount point, unmount it
         if os.path.ismount(self.NEXTCLOUD_DATA_BACKUP):
             self.executeCommand('umount {}'.format(self.NEXTCLOUD_DATA_BACKUP))
@@ -138,9 +172,11 @@ class NextcloudBackup(metaclass=Singleton):
             self.executeCommand('umount {}'.format(self.NEXTCLOUD_BACKUP_PARTITION))
 
         # mount storage partition
-        self.executeCommand('mount {} {}'.format(self.NEXTCLOUD_BACKUP_PARTITION, self.NEXTCLOUD_DATA_BACKUP))
+        self.executeCommand('mount {} {}'
+                            .format(self.NEXTCLOUD_BACKUP_PARTITION, self.NEXTCLOUD_DATA_BACKUP))
 
     def main(self):
+        '''Main routine to perform incremental backup'''
         # get datetime of last backup
         lastBackup = datetime.datetime.strptime(self.log.readlines()[-1].strip('\n'), '%c')
 
@@ -159,12 +195,16 @@ class NextcloudBackup(metaclass=Singleton):
             dst = src.replace(self.NEXTCLOUD_DATA, self.NEXTCLOUD_DATA_BACKUP)
             dirPath = dst.replace(dst[dst.rfind('/') + 1:], '')
 
+            # if directory doesn't exist, create it
             if not os.path.exists(dirPath):
                 if self.args.verbose:
                     print('creating \'{}\''.format(dirPath))
 
                 os.makedirs(dirPath, exist_ok=True)
 
+            # attempt to copy file. if error is caught, record error in log and
+            # add errored file to erroredFiles log if it still exists
+            # (if it wasn't deleted during this process)
             try:
                 if self.args.verbose:
                     print('\'{}\' --> \'{}\''.format(src, dst))
@@ -172,7 +212,8 @@ class NextcloudBackup(metaclass=Singleton):
                 if not self.args.dry_run:
                     shutil.copy2(src, dst)
             except Exception as e:
-                errorMessage = '{}: caught error \'{}\' while attempting to copy \'{}\''.format(datetime.datetime.now().strftime('%c'), e, dst)
+                errorMessage = ('{}: caught error \'{}\' while attempting to copy \'{}\''
+                                .format(datetime.datetime.now().strftime('%c'), e, dst))
                 self.error.write(errorMessage + '\n')
                 print(errorMessage, file=sys.stderr)
 
