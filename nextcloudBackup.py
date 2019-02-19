@@ -37,7 +37,7 @@ class NextcloudBackup(metaclass=Singleton):
     OLD_DUMMY_DATE = 'Tue Jan 29 19:37:23 2000\n'
 
     def __init__(self, args):
-        '''Validates constants/passed arguments and mounts backup partition'''
+        '''Initializes object, validates constants/passed arguments, and mounts backup partition'''
         # list of files to backup
         self.toBackup = []
 
@@ -65,6 +65,14 @@ class NextcloudBackup(metaclass=Singleton):
             self.erroredFiles.truncate(0)
 
         self.mountBackupPartition()
+
+    def __enter__(self):
+        '''Returns self when used in context manager'''
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        '''Calls tearDown() at end of context manager'''
+        self.tearDown()
 
     def tearDown(self):
         '''Unmounts Nextcloud backup partition and closes open log files'''

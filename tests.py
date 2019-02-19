@@ -41,15 +41,14 @@ class NextcloudBackupTests(TestCase):
 
         del self.obj
 
-    @patch('os.stat')
+    @patch('os.stat', MagicMock(side_effect=[MagicMock(st_size=1), MagicMock(st_size=0)]))
     @patch('os.path.isfile', MagicMock(return_value=True))
     @patch('builtins.open', MagicMock())
     @patch('nextcloudBackup.NextcloudBackup.checkDataExists', MagicMock())
     @patch('nextcloudBackup.NextcloudBackup.mountBackupPartition', MagicMock())
     @patch('nextcloudBackup.NextcloudBackup.executeCommand', MagicMock(return_value=''))
-    def test_sanity(self, mockStat):
+    def test_sanity(self):
         '''Tests ability to create NextcloudBackup object correctly'''
-        mockStat.side_effect = [MagicMock(st_size=1), MagicMock(st_size=0)]
         self.obj = NextcloudBackup(Namespace(verbose=False, dry_run=False))
 
     @patch('os.path.exists', MagicMock(return_value=False))
@@ -266,10 +265,9 @@ class NextcloudBackupTests(TestCase):
                 mockError().write.assert_called_once_with(errorMessage)
                 mockErroredFiles().write.assert_called_once_with('{}\n'.format(os.path.join(self.NEXTCLOUD_DATA, self.FAKE_FILES[0])))
 
+    @patch('nextcloudBackup.NextcloudBackup.__init__', lambda self: print('constructor called'))
     def test_singleton_behavior(self):
         '''Tests if NextcloudBackup acts like a singleton'''
-        oldInit = NextcloudBackup.__init__
-        NextcloudBackup.__init__ = lambda self: print('constructor called')
         out = StringIO()
 
         with redirect_stdout(out):
@@ -278,8 +276,6 @@ class NextcloudBackupTests(TestCase):
 
         self.assertTrue(self.obj is obj2)
         self.assertEqual(out.getvalue(), 'constructor called\n')
-
-        NextcloudBackup.__init__ = oldInit
 
     @patch('datetime.datetime', MockDatetime)
     @patch('os.stat', MagicMock(side_effect=[MagicMock(st_size=1), MagicMock(st_size=0)]))
@@ -306,3 +302,19 @@ class NextcloudBackupTests(TestCase):
             mockLog().write.assert_called_once_with('{}\n'.format(datetime.datetime.fromtimestamp(self.DUMMY_EPOCH_TIME).strftime('%c')))
             for log in [mockLog(), mockError(), mockErroredFiles()]:
                 log.close.assert_called_once()
+
+    @patch('os.stat', MagicMock(side_effect=[MagicMock(st_size=1), MagicMock(st_size=0)]))
+    @patch('os.path.isfile', MagicMock(return_value=True))
+    @patch('builtins.open', MagicMock())
+    @patch('nextcloudBackup.NextcloudBackup.checkDataExists', MagicMock())
+    @patch('nextcloudBackup.NextcloudBackup.mountBackupPartition', MagicMock())
+    @patch('nextcloudBackup.NextcloudBackup.executeCommand', MagicMock(return_value=''))
+    @patch('nextcloudBackup.NextcloudBackup.tearDown', lambda self: print('tearDown() called'))
+    def test_context_manager_usage(self):
+        '''Tests context manager usage with NextcloudBackup object'''
+        out = StringIO()
+        with redirect_stdout(out):
+            with NextcloudBackup(Namespace(verbose=False, dry_run=False)) as self.obj:
+                self.assertTrue(isinstance(self.obj, NextcloudBackup))
+
+        self.assertEqual(out.getvalue(), 'tearDown() called\n')
