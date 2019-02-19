@@ -301,7 +301,7 @@ class NextcloudBackupTests(TestCase):
             self.obj.tearDown()
             mockLog().write.assert_called_once_with('{}\n'.format(datetime.datetime.fromtimestamp(self.DUMMY_EPOCH_TIME).strftime('%c')))
             for log in [mockLog(), mockError(), mockErroredFiles()]:
-                log.close.assert_called_once()
+                self.assertTrue(log.close.called)
 
     @patch('os.stat', MagicMock(side_effect=[MagicMock(st_size=1), MagicMock(st_size=0)]))
     @patch('os.path.isfile', MagicMock(return_value=True))

@@ -93,18 +93,15 @@ class NextcloudBackup(metaclass=Singleton):
 
     def checkDataExists(self):
         '''Verifies that data location, backup mount point, and backup partition exist'''
-        # dictionary of directories and corresponding error messages
-        paths = {
-            self.NEXTCLOUD_DATA: ('Error: Nextcloud data directory \'{}\' '
-                                  'does not exist'.format(self.NEXTCLOUD_DATA)),
-            self.NEXTCLOUD_DATA_BACKUP: ('Error: Nextcloud backup mount point \'{}\' does '
-                                         'not exist'.format(self.NEXTCLOUD_DATA_BACKUP))
-            }
+        # test if nextcloud data directory exists
+        if not os.path.exists(self.NEXTCLOUD_DATA):
+            sys.exit(('Error: Nextcloud data directory \'{}\' '
+                      'does not exist'.format(self.NEXTCLOUD_DATA)))
 
-        # iterate over paths and if path does not exist, report appropriate error message
-        for path, err in paths.items():
-            if not os.path.exists(path):
-                sys.exit(err)
+        # test if nextcloud backup mount point exists
+        if not os.path.exists(self.NEXTCLOUD_DATA_BACKUP):
+            sys.exit(('Error: Nextcloud backup mount point \'{}\' does '
+                      'not exist'.format(self.NEXTCLOUD_DATA_BACKUP)))
 
         # verifies if specified partition exists
         if self.NEXTCLOUD_BACKUP_PARTITION.split('/')[-1] not in self.executeCommand('lsblk -l'):
