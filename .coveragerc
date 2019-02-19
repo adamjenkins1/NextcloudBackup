@@ -1,0 +1,7 @@
+[run]
+include = 
+  nextcloudBackup.py
+
+omit = 
+ tests.py
+ main.py
