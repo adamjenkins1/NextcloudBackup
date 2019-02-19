@@ -265,17 +265,15 @@ class NextcloudBackupTests(TestCase):
                 mockError().write.assert_called_once_with(errorMessage)
                 mockErroredFiles().write.assert_called_once_with('{}\n'.format(os.path.join(self.NEXTCLOUD_DATA, self.FAKE_FILES[0])))
 
-    @patch('nextcloudBackup.NextcloudBackup.__init__', lambda self: print('constructor called'))
-    def test_singleton_behavior(self):
+    @patch('nextcloudBackup.NextcloudBackup.__init__')
+    def test_singleton_behavior(self, mockInit):
         '''Tests if NextcloudBackup acts like a singleton'''
-        out = StringIO()
-
-        with redirect_stdout(out):
-            self.obj = NextcloudBackup()
-            obj2 = NextcloudBackup()
+        mockInit.return_value = None
+        self.obj = NextcloudBackup()
+        obj2 = NextcloudBackup()
 
         self.assertTrue(self.obj is obj2)
-        self.assertEqual(out.getvalue(), 'constructor called\n')
+        self.assertEqual(mockInit.call_count, 1)
 
     @patch('datetime.datetime', MockDatetime)
     @patch('os.stat', MagicMock(side_effect=[MagicMock(st_size=1), MagicMock(st_size=0)]))
@@ -309,12 +307,10 @@ class NextcloudBackupTests(TestCase):
     @patch('nextcloudBackup.NextcloudBackup.checkDataExists', MagicMock())
     @patch('nextcloudBackup.NextcloudBackup.mountBackupPartition', MagicMock())
     @patch('nextcloudBackup.NextcloudBackup.executeCommand', MagicMock(return_value=''))
-    @patch('nextcloudBackup.NextcloudBackup.tearDown', lambda self: print('tearDown() called'))
-    def test_context_manager_usage(self):
+    @patch('nextcloudBackup.NextcloudBackup.tearDown')
+    def test_context_manager_usage(self, mockTearDown):
         '''Tests context manager usage with NextcloudBackup object'''
-        out = StringIO()
-        with redirect_stdout(out):
-            with NextcloudBackup(Namespace(verbose=False, dry_run=False)) as self.obj:
-                self.assertTrue(isinstance(self.obj, NextcloudBackup))
+        with NextcloudBackup(Namespace(verbose=False, dry_run=False)) as self.obj:
+            self.assertTrue(isinstance(self.obj, NextcloudBackup))
 
-        self.assertEqual(out.getvalue(), 'tearDown() called\n')
+        self.assertTrue(mockTearDown.called)
