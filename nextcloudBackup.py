@@ -189,7 +189,8 @@ class NextcloudBackup(metaclass=Singleton):
         for subdir, dirs, files in os.walk(self.NEXTCLOUD_DATA):
             for f in files:
                 path = os.path.join(subdir, f)
-                if datetime.datetime.fromtimestamp(os.path.getmtime(path)) > lastBackup:
+                if datetime.datetime.fromtimestamp(os.path.getmtime(path)) > lastBackup or \
+                    not os.path.exists(path.replace(self.NEXTCLOUD_DATA, self.NEXTCLOUD_DATA_BACKUP)):
                     self.toBackup.append(path)
 
         # iterate over all files that need to be backed up and copy them
@@ -198,14 +199,14 @@ class NextcloudBackup(metaclass=Singleton):
                 continue
 
             dst = src.replace(self.NEXTCLOUD_DATA, self.NEXTCLOUD_DATA_BACKUP)
-            dirPath = dst.replace(dst[dst.rfind('/') + 1:], '')
+            destPath = dst.replace(dst[dst.rfind('/') + 1:], '')
 
             # if directory doesn't exist, create it
-            if not os.path.exists(dirPath):
+            if not os.path.exists(destPath):
                 if self.args.verbose:
-                    print('creating \'{}\''.format(dirPath))
+                    print('creating \'{}\''.format(destPath))
 
-                os.makedirs(dirPath, exist_ok=True)
+                os.makedirs(destPath, exist_ok=True)
 
             # attempt to copy file. if error is caught, record error in log and
             # add errored file to erroredFiles log if it still exists

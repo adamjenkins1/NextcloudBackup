@@ -8,6 +8,7 @@ from io import StringIO
 import os
 import shutil
 import datetime
+from dateutil.relativedelta import relativedelta
 from nextcloudBackup import NextcloudBackup
 
 class NextcloudBackupTests(TestCase):
@@ -153,16 +154,16 @@ class NextcloudBackupTests(TestCase):
             self.assertEqual(self.obj.toBackup, self.SAMPLE_ERRORED_FILES.split('\n')[:-1])
             mockLog().write.assert_called_once_with(self.OLD_DUMMY_DATE)
 
-    @patch('shutil.copy2', MagicMock())
     @patch('os.path.exists', MagicMock(return_value=True))
     @patch('os.stat', MagicMock(side_effect=[MagicMock(st_size=1), MagicMock(st_size=0)]))
     @patch('os.path.isfile', MagicMock(return_value=True))
     @patch('nextcloudBackup.NextcloudBackup.checkDataExists', MagicMock())
     @patch('nextcloudBackup.NextcloudBackup.mountBackupPartition', MagicMock())
     @patch('nextcloudBackup.NextcloudBackup.executeCommand', MagicMock(return_value=''))
+    @patch('shutil.copy2')
     @patch('os.walk')
     @patch('os.path.getmtime')
-    def test_main(self, mockGetmtime, mockWalk):
+    def test_main(self, mockGetmtime, mockWalk, mockShutil):
         '''Tests that NextcloudBackup.main() can be run correctly'''
         mockGetmtime.return_value = self.DUMMY_EPOCH_TIME
         mockWalk.return_value = [(self.NEXTCLOUD_DATA, 'dirs', self.FAKE_FILES)]
@@ -181,8 +182,42 @@ class NextcloudBackupTests(TestCase):
         with patch('builtins.open', mainHandler):
             self.obj = NextcloudBackup(Namespace(dry_run=False, verbose=False))
             self.obj.main()
+            self.assertEqual(mockShutil.call_count, 1)
             self.assertEqual(self.obj.toBackup,
                              [os.path.join(self.NEXTCLOUD_DATA, x) for x in self.FAKE_FILES])
+
+    @patch('os.path.exists', MagicMock(side_effect=[False, True, True]))
+    @patch('os.stat', MagicMock(side_effect=[MagicMock(st_size=1), MagicMock(st_size=0)]))
+    @patch('os.path.isfile', MagicMock(return_value=True))
+    @patch('nextcloudBackup.NextcloudBackup.checkDataExists', MagicMock())
+    @patch('nextcloudBackup.NextcloudBackup.mountBackupPartition', MagicMock())
+    @patch('nextcloudBackup.NextcloudBackup.executeCommand', MagicMock(return_value=''))
+    @patch('shutil.copy2')
+    @patch('os.walk')
+    @patch('os.path.getmtime')
+    def test_no_exist_copy(self, mockGetmtime, mockWalk, mockShutil):
+        '''Tests that NextcloudBackup.main() can be run correctly'''
+        olderDate = datetime.datetime.strptime(self.OLD_DUMMY_DATE.strip('\n'), '%c') - relativedelta(years=5)
+        mockGetmtime.side_effect = [self.DUMMY_EPOCH_TIME, self.DUMMY_EPOCH_TIME, olderDate.timestamp()]
+        mockWalk.return_value = [(self.NEXTCLOUD_DATA, 'dirs', self.FAKE_FILES + ['file3.png'])]
+
+        # log file setup
+        mainHandler = mock_open()
+        mockLog = mock_open(read_data=self.OLD_DUMMY_DATE)
+        mockError = mock_open()
+        mockErroredFiles = mock_open()
+        mainHandler.side_effect = [
+            mockLog.return_value,
+            mockError.return_value,
+            mockErroredFiles.return_value
+        ]
+
+        with patch('builtins.open', mainHandler):
+            self.obj = NextcloudBackup(Namespace(dry_run=False, verbose=False))
+            self.obj.main()
+            self.assertEqual(mockShutil.call_count, 2)
+            self.assertEqual(self.obj.toBackup,
+                             [os.path.join(self.NEXTCLOUD_DATA, x) for x in self.FAKE_FILES + ['file3.png']])
 
     @patch('os.makedirs', MagicMock())
     @patch('shutil.copy2', MagicMock())
