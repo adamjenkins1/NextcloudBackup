@@ -6,7 +6,7 @@ python:
   - "3.6.7"
 
 install:
-  - pip install pytest==3.6 pytest-cov codecov
+  - pip install pytest==3.6 pytest-cov codecov python-dateutil
 
 script: 
   - pytest -v --cov-config .coveragerc --cov=. tests.py
