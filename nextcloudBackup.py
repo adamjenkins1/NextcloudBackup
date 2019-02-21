@@ -41,12 +41,12 @@ class NextcloudBackup(metaclass=Singleton):
         # list of files to backup
         self.toBackup = []
 
+        # verify argparse namespace object
+        self.args = self.checkArgs(args)
+
         # verify that NEXTCLOUD_DATA, NEXTCLOUD_DATA_BACKUP, and
         # NEXTCLOUD_BACKUP_PARTITION exist
         self.checkDataExists()
-
-        # verify argparse namespace object
-        self.args = self.checkArgs(args)
 
         # log variables
         self.log = self.openLogFile(self.NEXTCLOUD_BACKUP_LOG)

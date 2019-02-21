@@ -53,10 +53,10 @@ class NextcloudBackupTests(TestCase):
         self.obj = NextcloudBackup(Namespace(verbose=False, dry_run=False))
 
     @patch('os.path.exists', MagicMock(return_value=False))
-    @patch('nextcloudBackup.NextcloudBackup.checkArgs')
-    def test_bad_nextcloud_data(self, mockCheckArgs):
+    @patch('nextcloudBackup.NextcloudBackup.openLogFile')
+    def test_bad_nextcloud_data(self, mockOpenLogFile):
         '''Tests if SystemExit is raised when NEXTCLOUD_DATA doesn't exist'''
-        mockCheckArgs.side_effect = SystemExit('Did not raise SystemExit in checkDataExists()')
+        mockOpenLogFile.side_effect = SystemExit('Did not raise SystemExit in checkDataExists()')
         with self.assertRaises(SystemExit) as err:
             self.obj = NextcloudBackup(Namespace(verbose=False, dry_run=False))
 
@@ -64,10 +64,10 @@ class NextcloudBackupTests(TestCase):
                                               'does not exist'.format(self.NEXTCLOUD_DATA)))
 
     @patch('os.path.exists', MagicMock(side_effect=[True, False]))
-    @patch('nextcloudBackup.NextcloudBackup.checkArgs')
-    def test_bad_nextcloud_data_backup(self, mockCheckArgs):
+    @patch('nextcloudBackup.NextcloudBackup.openLogFile')
+    def test_bad_nextcloud_data_backup(self, mockOpenLogFile):
         '''Tests if SystemExit is raised when NEXTCLOUD_DATA_BACKUP doesn't exist'''
-        mockCheckArgs.side_effect = SystemExit('Did not raise SystemExit in checkDataExists()')
+        mockOpenLogFile.side_effect = SystemExit('Did not raise SystemExit in checkDataExists()')
         with self.assertRaises(SystemExit) as err:
             self.obj = NextcloudBackup(Namespace(verbose=False, dry_run=False))
 
@@ -75,11 +75,11 @@ class NextcloudBackupTests(TestCase):
                                               'does not exist'.format(self.NEXTCLOUD_DATA_BACKUP)))
 
     @patch('os.path.exists', MagicMock(return_value=True))
-    @patch('nextcloudBackup.NextcloudBackup.checkArgs')
     @patch('nextcloudBackup.NextcloudBackup.executeCommand', MagicMock(return_value=''))
-    def test_bad_nextcloud_backup_partition(self, mockCheckArgs):
+    @patch('nextcloudBackup.NextcloudBackup.openLogFile')
+    def test_bad_nextcloud_backup_partition(self, mockOpenLogFile):
         '''Tests if SystemExit is raised when NEXTCLOUD_BACKUP_PARTITION doesn't exist'''
-        mockCheckArgs.side_effect = SystemExit('Did not raise SystemExit in checkDataExists()')
+        mockOpenLogFile.side_effect = SystemExit('Did not raise SystemExit in checkDataExists()')
         with self.assertRaises(SystemExit) as err:
             self.obj = NextcloudBackup(Namespace(verbose=False, dry_run=False))
 
