@@ -50,7 +50,7 @@ class NextcloudBackup(metaclass=Singleton):
 
         # log variables
         self.log = self.openLogFile(self.NEXTCLOUD_BACKUP_LOG)
-        self.error = self.openLogFile(self.NEXTCLOUD_BACKUP_ERROR_LOG)
+        self.error = self.openLogFile(self.NEXTCLOUD_BACKUP_ERROR_LOG, True)
         self.erroredFiles = self.openLogFile(self.NEXTCLOUD_ERRORED_FILES_LOG)
 
         # if backup log is empty, add dummy date
@@ -131,10 +131,12 @@ class NextcloudBackup(metaclass=Singleton):
 
         return args
 
-    def openLogFile(self, path):
+    def openLogFile(self, path, append=False):
         '''Opens given file if it exists, otherwise it is created. File object is then returned'''
         if not os.path.isfile(path):
             fp = open(path, 'w+')
+        elif append:
+            fp = open(path, 'a+')
         else:
             fp = open(path, 'r+')
 
